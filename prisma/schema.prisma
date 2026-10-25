@@ -1,0 +1,147 @@
+// סכמת מסד הנתונים של לוח השמחות
+// כל שינוי כאן דורש Migration חדש: npm run db:migrate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // כתובת ישירה (לא דרך Pooler) - משמשת להרצת Migrations.
+  // בהרצה מקומית אפשר לשים בה את אותו ערך כמו DATABASE_URL.
+  directUrl = env("DIRECT_URL")
+}
+
+enum GroupRole {
+  MANAGER
+  MEMBER
+}
+
+enum CelebrationType {
+  ENGAGEMENT
+  WEDDING
+  SHEVA_BRACHOT
+  BRIT_MILAH
+  PIDYON_HABEN
+  KIDDUSH
+  UPSHERIN
+  BAR_MITZVAH
+  BAT_MITZVAH
+  SIYUM
+  CHANUKAT_BAYIT
+  OTHER
+}
+
+enum HebrewMonth {
+  TISHREI
+  CHESHVAN
+  KISLEV
+  TEVET
+  SHEVAT
+  ADAR
+  ADAR_I
+  ADAR_II
+  NISAN
+  IYAR
+  SIVAN
+  TAMMUZ
+  AV
+  ELUL
+}
+
+/// משתמשים רשומים
+model User {
+  id             Int      @id @default(autoincrement())
+  fullName       String   @db.VarChar(60)
+  email          String   @unique @db.VarChar(254)
+  passwordHash   String
+  emailReminders Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  memberships   GroupMember[]
+  celebrations  Celebration[]
+  createdGroups Group[]       @relation("GroupCreator")
+}
+
+/// קבוצות (משפחה, חברות וכו')
+model Group {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(50)
+  joinCode    String   @unique @db.VarChar(8)
+  createdById Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy    User               @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members      GroupMember[]
+  celebrations CelebrationGroup[]
+}
+
+/// חברות של משתמש בקבוצה, כולל התפקיד שלו בה
+model GroupMember {
+  userId   Int
+  groupId  Int
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+  @@index([groupId])
+}
+
+/// שמחה - האובייקט המרכזי במערכת
+model Celebration {
+  id             Int             @id @default(autoincrement())
+  title          String          @db.VarChar(100)
+  type           CelebrationType
+  eventDate      DateTime        @db.Date
+  eventTime      String          @db.VarChar(5)
+  hebrewDay      Int             @db.SmallInt
+  hebrewMonth    HebrewMonth
+  hebrewYear     Int             @db.SmallInt
+  venueName      String          @db.VarChar(100)
+  address        String?         @db.VarChar(200)
+  description    String?         @db.VarChar(1000)
+  ownerId        Int
+  reminderSentAt DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  owner  User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  groups CelebrationGroup[]
+  image  CelebrationImage?
+
+  @@index([eventDate])
+  @@index([hebrewYear, hebrewMonth])
+  @@index([type])
+  @@index([ownerId])
+}
+
+/// שיתוף של שמחה בקבוצה (שמחה אחת יכולה להופיע בכמה קבוצות)
+model CelebrationGroup {
+  celebrationId Int
+  groupId       Int
+  sharedAt      DateTime @default(now())
+
+  celebration Celebration @relation(fields: [celebrationId], references: [id], onDelete: Cascade)
+  group       Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([celebrationId, groupId])
+  @@index([groupId])
+}
+
+/// תמונת ההזמנה - נשמרת בתוך מסד הנתונים (עד 2MB)
+model CelebrationImage {
+  celebrationId Int      @id
+  imageKey      String   @unique @db.VarChar(64)
+  mimeType      String   @db.VarChar(20)
+  sizeBytes     Int
+  data          Bytes
+  updatedAt     DateTime @updatedAt
+
+  celebration Celebration @relation(fields: [celebrationId], references: [id], onDelete: Cascade)
+}

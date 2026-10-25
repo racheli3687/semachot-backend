@@ -1,0 +1,3093 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "לוח שמחות - API",
+    "version": "1.0.0",
+    "description": "ה-API של לוח השמחות הקבוצתי.\n\n**איך בודקים כתובות מוגנות (🔒):**\n1. פתחו את `POST /api/auth/login`, לחצו **Try it out** ואז **Execute**.\n2. העתיקו את הערך של `token` מהתשובה.\n3. לחצו על הכפתור **Authorize** למעלה, הדביקו את ה-Token (בלי המילה Bearer) ולחצו **Authorize**.\n\nמשתמשי הדגמה (אחרי הרצת Seed בסביבת פיתוח): `manager@example.com` / `member@example.com` / `outsider@example.com`, סיסמה: `Demo1234`.\n\nשגיאות מוחזרות תמיד במבנה `{ \"error\": { \"code\", \"message\", \"details\" } }`."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "השרת הנוכחי"
+    }
+  ],
+  "tags": [
+    {
+      "name": "כללי"
+    },
+    {
+      "name": "התחברות"
+    },
+    {
+      "name": "קבוצות"
+    },
+    {
+      "name": "שמחות"
+    },
+    {
+      "name": "לוח עברי"
+    },
+    {
+      "name": "תזכורות"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "הדביקו את ה-Token שהתקבל בהתחברות"
+      },
+      "cronSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Cron-Secret",
+        "description": "הקוד הסודי של השעון המעורר"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "example": "חלק מהנתונים שנשלחו אינם תקינים"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "emailReminders": {
+            "type": "boolean",
+            "description": "האם לשלוח תזכורות במייל"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "example": {
+          "id": 1,
+          "fullName": "רחל כהן",
+          "email": "rachel@example.com",
+          "emailReminders": true,
+          "createdAt": "2026-10-23T08:00:00.000Z"
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT - יש לשלוח בכותרת Authorization: Bearer <token>"
+          },
+          "expiresIn": {
+            "type": "string",
+            "example": "1d"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "RegisterInput": {
+        "type": "object",
+        "required": [
+          "fullName",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 72,
+            "description": "לפחות 8 תווים, אות אחת וספרה אחת"
+          }
+        },
+        "example": {
+          "fullName": "רחל כהן",
+          "email": "rachel@example.com",
+          "password": "Aa123456"
+        }
+      },
+      "LoginInput": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "email": "manager@example.com",
+          "password": "Demo1234"
+        }
+      },
+      "UpdateMeInput": {
+        "type": "object",
+        "description": "כל השדות אופציונליים, אבל יש לשלוח לפחות אחד",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60
+          },
+          "emailReminders": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "fullName": "רחל לוי",
+          "emailReminders": false
+        }
+      },
+      "GroupRole": {
+        "type": "string",
+        "enum": [
+          "MANAGER",
+          "MEMBER"
+        ]
+      },
+      "Group": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "myRole": {
+            "$ref": "#/components/schemas/GroupRole"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "joinCode": {
+            "type": "string",
+            "description": "מוחזר רק למנהל/ת הקבוצה",
+            "example": "K7M2QX9P"
+          }
+        },
+        "example": {
+          "id": 3,
+          "name": "משפחת כהן",
+          "myRole": "MANAGER",
+          "memberCount": 12,
+          "createdAt": "2026-10-23T08:00:00.000Z",
+          "joinCode": "K7M2QX9P"
+        }
+      },
+      "GroupNameInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 50
+          }
+        },
+        "example": {
+          "name": "משפחת כהן"
+        }
+      },
+      "JoinGroupInput": {
+        "type": "object",
+        "required": [
+          "joinCode"
+        ],
+        "properties": {
+          "joinCode": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{8}$",
+            "description": "לא משנה אם באותיות גדולות או קטנות"
+          }
+        },
+        "example": {
+          "joinCode": "K7M2QX9P"
+        }
+      },
+      "Member": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "$ref": "#/components/schemas/GroupRole"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "example": {
+          "userId": 1,
+          "fullName": "רחל כהן",
+          "email": "rachel@example.com",
+          "role": "MANAGER",
+          "joinedAt": "2026-10-23T08:00:00.000Z"
+        }
+      },
+      "LeaveResult": {
+        "type": "object",
+        "properties": {
+          "left": {
+            "type": "boolean"
+          },
+          "groupDeleted": {
+            "type": "boolean",
+            "description": "true אם לא נשארו חברים והקבוצה נמחקה"
+          },
+          "newManagerId": {
+            "type": "integer",
+            "nullable": true,
+            "description": "אם המנהל היחיד יצא - מי הפך למנהל"
+          }
+        },
+        "example": {
+          "left": true,
+          "groupDeleted": false,
+          "newManagerId": 7
+        }
+      },
+      "CelebrationType": {
+        "type": "string",
+        "enum": [
+          "ENGAGEMENT",
+          "WEDDING",
+          "SHEVA_BRACHOT",
+          "BRIT_MILAH",
+          "PIDYON_HABEN",
+          "KIDDUSH",
+          "UPSHERIN",
+          "BAR_MITZVAH",
+          "BAT_MITZVAH",
+          "SIYUM",
+          "CHANUKAT_BAYIT",
+          "OTHER"
+        ],
+        "description": "ENGAGEMENT = אירוסין / ווארט · WEDDING = חתונה · SHEVA_BRACHOT = שבע ברכות · BRIT_MILAH = ברית מילה · PIDYON_HABEN = פדיון הבן · KIDDUSH = קידוש / שמחת בת · UPSHERIN = חלאקה / תספורת · BAR_MITZVAH = בר מצווה · BAT_MITZVAH = בת מצווה · SIYUM = סיום מסכת · CHANUKAT_BAYIT = חנוכת בית · OTHER = אחר"
+      },
+      "HebrewMonth": {
+        "type": "string",
+        "enum": [
+          "TISHREI",
+          "CHESHVAN",
+          "KISLEV",
+          "TEVET",
+          "SHEVAT",
+          "ADAR",
+          "ADAR_I",
+          "ADAR_II",
+          "NISAN",
+          "IYAR",
+          "SIVAN",
+          "TAMMUZ",
+          "AV",
+          "ELUL"
+        ],
+        "description": "ADAR בשנה רגילה. ADAR_I ו-ADAR_II בשנה מעוברת"
+      },
+      "HebrewDateInput": {
+        "type": "object",
+        "required": [
+          "day",
+          "month",
+          "year"
+        ],
+        "properties": {
+          "day": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "month": {
+            "$ref": "#/components/schemas/HebrewMonth"
+          },
+          "year": {
+            "type": "integer",
+            "example": 5787
+          }
+        },
+        "example": {
+          "day": 15,
+          "month": "CHESHVAN",
+          "year": 5787
+        }
+      },
+      "HebrewDate": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "integer"
+          },
+          "month": {
+            "$ref": "#/components/schemas/HebrewMonth"
+          },
+          "year": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string",
+            "example": "ט״ו בחשוון תשפ״ז"
+          }
+        }
+      },
+      "Celebration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CelebrationType"
+          },
+          "typeLabel": {
+            "type": "string",
+            "description": "שם הסוג בעברית"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "תאריך לועזי YYYY-MM-DD"
+          },
+          "time": {
+            "type": "string",
+            "example": "19:30"
+          },
+          "hebrewDate": {
+            "$ref": "#/components/schemas/HebrewDate"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "כתובת מלאה לתמונה, או null"
+          },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "fullName": {
+                "type": "string"
+              }
+            }
+          },
+          "groups": {
+            "type": "array",
+            "description": "הקבוצות שבהן השמחה מופיעה - רק כאלה שגם הצופה חבר בהן",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "isToday": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "type": "object",
+            "description": "עוזר להחליט אילו כפתורים להציג. השרת בודק הרשאות בכל מקרה",
+            "properties": {
+              "canEdit": {
+                "type": "boolean",
+                "description": "עריכה, מחיקה ותמונה - רק לבעל/ת השמחה"
+              },
+              "canRemoveFromGroupIds": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "example": {
+          "id": 14,
+          "title": "בר המצווה של יוסי",
+          "type": "BAR_MITZVAH",
+          "typeLabel": "בר מצווה",
+          "date": "2026-10-26",
+          "time": "19:30",
+          "hebrewDate": {
+            "day": 15,
+            "month": "CHESHVAN",
+            "year": 5787,
+            "text": "ט״ו בחשוון תשפ״ז"
+          },
+          "venueName": "אולמי הדר",
+          "address": "רחוב הרב קוק 10, בני ברק",
+          "description": "נשמח לראותכם",
+          "imageUrl": "https://my-api.onrender.com/api/images/q3ZbK1x8vYw0n7Lr5TfGh2Pc9AeJ4mUd",
+          "owner": {
+            "id": 2,
+            "fullName": "שרה לוי"
+          },
+          "groups": [
+            {
+              "id": 3,
+              "name": "משפחת כהן"
+            }
+          ],
+          "isToday": false,
+          "permissions": {
+            "canEdit": false,
+            "canRemoveFromGroupIds": [
+              3
+            ]
+          },
+          "createdAt": "2026-10-23T08:00:00.000Z",
+          "updatedAt": "2026-10-23T08:00:00.000Z"
+        }
+      },
+      "CelebrationInput": {
+        "type": "object",
+        "description": "יש לשלוח date (לועזי) או hebrewDate (עברי) - אחד מהם בלבד",
+        "required": [
+          "title",
+          "type",
+          "time",
+          "venueName",
+          "groupIds"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100
+          },
+          "type": {
+            "$ref": "#/components/schemas/CelebrationType"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-26"
+          },
+          "hebrewDate": {
+            "$ref": "#/components/schemas/HebrewDateInput"
+          },
+          "time": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "example": "19:30"
+          },
+          "venueName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "nullable": true
+          },
+          "groupIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "integer"
+            },
+            "description": "רק קבוצות שאת/ה חבר/ה בהן"
+          }
+        },
+        "example": {
+          "title": "בר המצווה של יוסי",
+          "type": "BAR_MITZVAH",
+          "hebrewDate": {
+            "day": 15,
+            "month": "CHESHVAN",
+            "year": 5787
+          },
+          "time": "19:30",
+          "venueName": "אולמי הדר",
+          "address": "רחוב הרב קוק 10, בני ברק",
+          "description": "נשמח לראותכם",
+          "groupIds": [
+            1
+          ]
+        }
+      },
+      "CelebrationList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Celebration"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
+          }
+        }
+      },
+      "ConvertResult": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "hebrewDate": {
+            "$ref": "#/components/schemas/HebrewDate"
+          }
+        },
+        "example": {
+          "date": "2026-10-26",
+          "hebrewDate": {
+            "day": 15,
+            "month": "CHESHVAN",
+            "year": 5787,
+            "text": "ט״ו בחשוון תשפ״ז"
+          }
+        }
+      },
+      "MonthsResult": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "yearText": {
+            "type": "string"
+          },
+          "isLeapYear": {
+            "type": "boolean"
+          },
+          "months": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "month": {
+                  "$ref": "#/components/schemas/HebrewMonth"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "days": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "example": {
+          "year": 5787,
+          "yearText": "תשפ״ז",
+          "isLeapYear": true,
+          "months": [
+            {
+              "month": "TISHREI",
+              "name": "תשרי",
+              "days": 30
+            },
+            {
+              "month": "CHESHVAN",
+              "name": "חשוון",
+              "days": 30
+            }
+          ]
+        }
+      },
+      "ReminderRunResult": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "celebrations": {
+            "type": "integer",
+            "description": "שמחות של היום שעוד לא קיבלו תזכורת"
+          },
+          "emailsSent": {
+            "type": "integer"
+          },
+          "emailsFailed": {
+            "type": "integer"
+          },
+          "emailEnabled": {
+            "type": "boolean",
+            "description": "false אם שירות המייל לא הוגדר"
+          }
+        },
+        "example": {
+          "date": "2026-10-26",
+          "celebrations": 2,
+          "emailsSent": 31,
+          "emailsFailed": 0,
+          "emailEnabled": true
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "כללי"
+        ],
+        "summary": "בדיקת בריאות השרת ומסד הנתונים",
+        "responses": {
+          "200": {
+            "description": "השרת ומסד הנתונים פעילים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": "ok",
+                  "database": "ok",
+                  "time": "2026-10-23T08:00:00.000Z"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "אין חיבור למסד הנתונים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "status": "degraded",
+                  "database": "error",
+                  "time": "2026-10-23T08:00:00.000Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/celebration-types": {
+      "get": {
+        "tags": [
+          "כללי"
+        ],
+        "summary": "רשימת סוגי השמחות עם השם בעברית",
+        "responses": {
+          "200": {
+            "description": "רשימת הסוגים לפי סדר ההצגה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "$ref": "#/components/schemas/CelebrationType"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "example": [
+                  {
+                    "value": "ENGAGEMENT",
+                    "label": "אירוסין / ווארט"
+                  },
+                  {
+                    "value": "WEDDING",
+                    "label": "חתונה"
+                  },
+                  {
+                    "value": "SHEVA_BRACHOT",
+                    "label": "שבע ברכות"
+                  },
+                  {
+                    "value": "BRIT_MILAH",
+                    "label": "ברית מילה"
+                  },
+                  {
+                    "value": "PIDYON_HABEN",
+                    "label": "פדיון הבן"
+                  },
+                  {
+                    "value": "KIDDUSH",
+                    "label": "קידוש / שמחת בת"
+                  },
+                  {
+                    "value": "UPSHERIN",
+                    "label": "חלאקה / תספורת"
+                  },
+                  {
+                    "value": "BAR_MITZVAH",
+                    "label": "בר מצווה"
+                  },
+                  {
+                    "value": "BAT_MITZVAH",
+                    "label": "בת מצווה"
+                  },
+                  {
+                    "value": "SIYUM",
+                    "label": "סיום מסכת"
+                  },
+                  {
+                    "value": "CHANUKAT_BAYIT",
+                    "label": "חנוכת בית"
+                  },
+                  {
+                    "value": "OTHER",
+                    "label": "אחר"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": [
+          "התחברות"
+        ],
+        "summary": "הרשמה - יוצרת חשבון ומחזירה Token (נכנסים מיד)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "החשבון נוצר",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "כתובת המייל כבר רשומה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "CONFLICT",
+                    "message": "כתובת המייל כבר רשומה במערכת"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "יותר מדי ניסיונות",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "TOO_MANY_REQUESTS",
+                    "message": "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "התחברות"
+        ],
+        "summary": "התחברות - מחזירה JWT",
+        "description": "אחרי ההתחברות: העתיקו את ה-token מהתשובה, לחצו על הכפתור Authorize למעלה, הדביקו אותו ולחצו Authorize. מעכשיו כל הקריאות יישלחו עם ה-Token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "התחברות הצליחה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "מייל או סיסמה שגויים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_CREDENTIALS",
+                    "message": "המייל או הסיסמה שגויים"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "יותר מדי ניסיונות",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "TOO_MANY_REQUESTS",
+                    "message": "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "התחברות"
+        ],
+        "summary": "פרטי המשתמש המחובר",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "פרטי המשתמש",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "התחברות"
+        ],
+        "summary": "עדכון שם ומצב התזכורות",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "הפרטים עודכנו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups": {
+      "get": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "הקבוצות שלי",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "רשימת הקבוצות",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Group"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "פתיחת קבוצה חדשה (הפותח/ת הופך/ת למנהל/ת)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupNameInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "הקבוצה נוצרה, כולל קוד הצטרפות",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups/join": {
+      "post": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "הצטרפות לקבוצה בעזרת קוד",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinGroupInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "הצטרפת לקבוצה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "הקוד לא נמצא",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "קוד ההצטרפות לא נמצא. בדקו שהקוד הוקלד נכון"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "כבר חבר/ה בקבוצה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "CONFLICT",
+                    "message": "את/ה כבר חבר/ה בקבוצה הזו"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups/{groupId}": {
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "description": "מזהה הקבוצה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "פרטי קבוצה (לחברי הקבוצה בלבד)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "פרטי הקבוצה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "שינוי שם הקבוצה (מנהל/ת בלבד)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupNameInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "השם עודכן",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "מחיקת הקבוצה (מנהל/ת בלבד). השמחות עצמן נשארות אצל בעליהן",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "הפעולה הצליחה (אין תוכן בתשובה)"
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups/{groupId}/join-code": {
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "description": "מזהה הקבוצה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "יצירת קוד הצטרפות חדש - הקוד הישן מפסיק לעבוד (מנהל/ת בלבד)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "הקוד החדש",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "joinCode": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "joinCode": "P4WN8R2T"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups/{groupId}/leave": {
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "description": "מזהה הקבוצה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "יציאה מהקבוצה. השמחות שלך מוסרות ממנה",
+        "description": "אם המנהל/ת היחיד/ה יוצא/ת - החבר/ה הוותיק/ה ביותר הופך/ת למנהל/ת. אם לא נשארו חברים - הקבוצה נמחקת.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "יצאת מהקבוצה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups/{groupId}/members": {
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "description": "מזהה הקבוצה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "רשימת חברי הקבוצה (כולל מייל) - לחברי הקבוצה בלבד",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "רשימת החברים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Member"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups/{groupId}/members/{userId}": {
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "description": "מזהה הקבוצה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "userId",
+          "in": "path",
+          "required": true,
+          "description": "מזהה החבר/ה להסרה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "הסרת חבר/ה מהקבוצה (מנהל/ת בלבד). השמחות שלו/ה מוסרות מהקבוצה",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "הפעולה הצליחה (אין תוכן בתשובה)"
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/groups/{groupId}/celebrations/{celebrationId}": {
+      "parameters": [
+        {
+          "name": "groupId",
+          "in": "path",
+          "required": true,
+          "description": "מזהה הקבוצה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "celebrationId",
+          "in": "path",
+          "required": true,
+          "description": "מזהה השמחה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "קבוצות"
+        ],
+        "summary": "הסרת שמחה מהקבוצה (מנהל/ת הקבוצה או בעל/ת השמחה). השמחה עצמה לא נמחקת",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "הפעולה הצליחה (אין תוכן בתשובה)"
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/celebrations": {
+      "get": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "רשימת שמחות - חיפוש, סינון, מיון ועמודים",
+        "description": "מחזירה רק שמחות שמותר לך לראות: שמחות שהעלית, ושמחות מהקבוצות שאת/ה חבר/ה בהן.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "groupId",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "רק שמחות של קבוצה מסוימת (חייבת להיות שלך)"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CelebrationType"
+            },
+            "description": "סוג שמחה"
+          },
+          {
+            "name": "when",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "upcoming",
+                "past",
+                "all"
+              ],
+              "default": "upcoming"
+            },
+            "description": "upcoming = מהיום והלאה"
+          },
+          {
+            "name": "hebrewYear",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "example": 5787
+            },
+            "description": "שנה עברית"
+          },
+          {
+            "name": "hebrewMonth",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HebrewMonth"
+            },
+            "description": "חודש עברי (דורש גם hebrewYear)"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "חיפוש בכותרת, במקום ובשם מי שהעלה"
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "true = רק שמחות שאני העליתי"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "date_asc",
+                "date_desc",
+                "created_desc"
+              ]
+            },
+            "description": "ברירת מחדל: date_asc (וב-past: date_desc)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "עמוד של שמחות",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CelebrationList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "הוספת שמחה",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CelebrationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "השמחה נוספה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Celebration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/celebrations/today": {
+      "get": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "השמחות של היום (לפי שעון ישראל) מכל הקבוצות שלי",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "רשימת השמחות של היום",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Celebration"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/celebrations/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "מזהה השמחה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "פרטי שמחה",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "פרטי השמחה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Celebration"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "עריכת שמחה, כולל בחירת הקבוצות (בעל/ת השמחה בלבד)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CelebrationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "השמחה עודכנה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Celebration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "מחיקת שמחה (בעל/ת השמחה בלבד)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "הפעולה הצליחה (אין תוכן בתשובה)"
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/celebrations/{id}/image": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "מזהה השמחה",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "העלאה או החלפה של תמונת ההזמנה (בעל/ת השמחה בלבד)",
+        "description": "JPG, PNG או WEBP, עד 2MB. נשלח כ-multipart/form-data בשדה בשם image.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "התמונה נשמרה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "imageUrl": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "imageUrl": "https://my-api.onrender.com/api/images/q3ZbK1x8vYw0n7Lr5TfGh2Pc9AeJ4mUd"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "הקובץ גדול מדי",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FILE_TOO_LARGE",
+                    "message": "הקובץ גדול מדי. הגודל המקסימלי הוא 2MB"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "סוג קובץ לא נתמך",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNSUPPORTED_MEDIA_TYPE",
+                    "message": "אפשר להעלות רק תמונות מסוג JPG, PNG או WEBP"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "הסרת התמונה (בעל/ת השמחה בלבד)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "הפעולה הצליחה (אין תוכן בתשובה)"
+          },
+          "401": {
+            "description": "לא נשלח Token, או שה-Token לא תקין / פג תוקפו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "נדרשת התחברות. יש לשלוח Token בכותרת Authorization"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "אין הרשאה לבצע את הפעולה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "רק מנהל/ת הקבוצה יכול/ה לבצע פעולה זו"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{imageKey}": {
+      "get": {
+        "tags": [
+          "שמחות"
+        ],
+        "summary": "הצגת תמונה לפי המזהה האקראי שלה (ללא Token - לשימוש בתגית img)",
+        "parameters": [
+          {
+            "name": "imageKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "קובץ התמונה",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "לא נמצא, או שאין לך גישה אליו",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "הפריט המבוקש לא נמצא"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hebrew-calendar/today": {
+      "get": {
+        "tags": [
+          "לוח עברי"
+        ],
+        "summary": "התאריך של היום - עברי ולועזי",
+        "responses": {
+          "200": {
+            "description": "התאריך של היום",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "date": "2026-10-23",
+                  "hebrewDate": {
+                    "day": 12,
+                    "month": "CHESHVAN",
+                    "year": 5787,
+                    "text": "י״ב בחשוון תשפ״ז"
+                  },
+                  "yearText": "תשפ״ז"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hebrew-calendar/months": {
+      "get": {
+        "tags": [
+          "לוח עברי"
+        ],
+        "summary": "החודשים של שנה עברית ומספר הימים בכל חודש",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "example": 5787
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "חודשי השנה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hebrew-calendar/convert": {
+      "get": {
+        "tags": [
+          "לוח עברי"
+        ],
+        "summary": "המרת תאריך: לועזי → עברי (date), או עברי → לועזי (day + month + year)",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "לועזי, למשל 2026-10-26"
+          },
+          {
+            "name": "day",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "יום עברי, למשל 15"
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/HebrewMonth"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "שנה עברית, למשל 5787"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "התאריך בשני הלוחות",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConvertResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "הנתונים שנשלחו אינם תקינים",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "חלק מהנתונים שנשלחו אינם תקינים",
+                    "details": [
+                      {
+                        "field": "title",
+                        "message": "הכותרת חייבת להכיל לפחות 2 תווים"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reminders/run": {
+      "post": {
+        "tags": [
+          "תזכורות"
+        ],
+        "summary": "שליחת תזכורות במייל לשמחות של היום (מופעל על ידי שעון מעורר חיצוני)",
+        "description": "מוגן בכותרת X-Cron-Secret ולא ב-Token של משתמש. הפעלה כפולה באותו יום לא שולחת פעמיים.",
+        "security": [
+          {
+            "cronSecret": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "סיכום השליחה",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderRunResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "קוד סודי שגוי",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_CRON_SECRET",
+                    "message": "קוד סודי שגוי בכותרת X-Cron-Secret"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "התזכורות כבויות",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "REMINDERS_DISABLED",
+                    "message": "התזכורות כבויות: המשתנה CRON_SECRET לא הוגדר בשרת"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

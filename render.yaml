@@ -1,0 +1,36 @@
+# הגדרות פריסה ל-Render (Blueprint).
+# אפשר ליצור את השירות מהקובץ הזה (New > Blueprint), או ידנית לפי START-HERE.md.
+# מסד הנתונים נמצא אצל ספק נפרד (Neon / Supabase) - לכן אין כאן הגדרת database.
+
+services:
+  - type: web
+    name: semachot-board-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    # התקנה (כולל כלי הבנייה) → קומפילציה → עדכון מבנה מסד הנתונים → נתוני הדגמה (רק אם הופעלו)
+    buildCommand: npm install --include=dev && npm run build && npx prisma migrate deploy && npm run db:seed:deploy
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 1d
+      - key: CORS_ORIGINS
+        value: http://localhost:5173
+      - key: CRON_SECRET
+        generateValue: true
+      - key: EMAIL_FROM_NAME
+        value: לוח שמחות
+      - key: SEED_DEMO_DATA
+        value: "false"
